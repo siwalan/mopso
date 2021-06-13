@@ -1,4 +1,4 @@
-%% Particle Swarm Optimization
+%% Multiple Objective Particle Swarm Optimization
 % Modified according to known best practice.
 % Application of Computational Intelligence - As Taught Professor I. T. Yang
 % National Taiwan University of Science and Technology
@@ -153,6 +153,12 @@ end
 
 function valid = checkValid(particle, lb, ub)
    break_boundary = sum(particle>=ub) + sum(particle<=lb);
+   break_boundary = sum(particle>=ub) + sum(particle<=lb);
+    if (break_boundary == 0)
+        valid = 1;
+    else
+        valid = 0;
+    end
 end
 
 function [dominated, dominating] = checkDomination(particle,particles)
