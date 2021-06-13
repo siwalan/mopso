@@ -106,7 +106,7 @@ w = w_init - (0.5/iteration * iteration);
         dominated = checkDomination(pbestfv(dominant_loop_iterator,:), pbestfv_trial);
         if (dominated == 0)
            pdominantfv = [pdominantfv; pbestfv(dominant_loop_iterator,:)];
-           pdominant = [pdominant; x(pop_iter,:)];
+           pdominant = [pdominant; pbest(dominant_loop_iterator,:)];
         end
     end
     
