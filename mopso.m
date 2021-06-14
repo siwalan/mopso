@@ -136,10 +136,8 @@ w = w_init - (0.5/iteration * iteration);
 
     [value, index] = max(pdominantfv_NNDE);
 
-    if value > gbestNNDE
-        gbestfv = pdominantfv(index);
-        gbest = pdominant(index,:);
-    end
+    gbestfv = pdominantfv(index);
+    gbest = pdominant(index,:);
     
 end
 
