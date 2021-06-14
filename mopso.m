@@ -44,18 +44,23 @@ for pop_iter=1:pop_size
     end
 end
 
+pdominantfv_history = [];
+pdominant_history = [];
 
 %% Determine the Fitness of the dominant
 %%% Nearest Neighbor Density Estimator
 pdominantfv_NNDE = [];
-for iterator=1:length(pdominantfv)
+for iterator=1:size(pdominantfv,1)
     pdominantfv_NNDE = [pdominantfv_NNDE; sum(mink(sqrt(sum((pdominantfv(iterator,:)-pdominantfv(:,:)).^2,2)),3))];    
 end
 [value, index] = max(pdominantfv_NNDE);
 
 gbestNNDE = value;
-gbestfv = pdominantfv(index);
+gbestfv = pdominantfv(index,:);
 gbest = pdominant(index,:);
+
+pdominantfv_history = pdominantfv;
+pdominant_history = pdominant;
 
 v = (rand(pop_size, n_var)) .* (vub-vlb) + vlb;
 %% Population Iteration
@@ -88,9 +93,8 @@ w = w_init - (0.5/iteration * iteration);
         v(pop_iter,vbindex_down)=vlb(vbindex_down);
 
         dominated = checkDomination(fv(pop_iter,:), pbestfv(pop_iter));
-        valid = checkValid(x(pop_iter,:),lb,ub);
         if (dominated == 0 & valid == 1)
-             pbestfv(pop_iter) = fv(pop_iter);
+             pbestfv(pop_iter,:) = fv(pop_iter,:);
              pbest(pop_iter,:) = x(pop_iter,:);
         end
         
@@ -111,13 +115,13 @@ w = w_init - (0.5/iteration * iteration);
     end
     
     %% Remove Duplicate Dominanating Resut
-    [B,I] =unique(pdominantfv,'rows');
-    pdominantfv = B;
-    pdominant = pdominant(I,:);
+    [B,I] =unique(pdominant,'rows');
+    pdominant = B;
+    pdominantfv = pdominantfv(I,:);
     
     %% Kill Non Dominating Result
     dominated_rank = [];
-        for dominant_loop_iterator=1:length(pdominantfv)
+        for dominant_loop_iterator=1:size(pdominantfv,1)
             pdominantfv_trial = pdominantfv;
             pdominantfv_trial(dominant_loop_iterator,:) = [];
             dominated = checkDomination(pdominantfv(dominant_loop_iterator,:), pdominantfv_trial);
@@ -130,15 +134,19 @@ w = w_init - (0.5/iteration * iteration);
 
     %% Determine the GBest
     pdominantfv_NNDE =[];
-    for NNDE_iterator=1:length(pdominantfv)
+    for NNDE_iterator=1:size(pdominantfv,1)
         pdominantfv_NNDE = [pdominantfv_NNDE; sum(mink(sqrt(sum((pdominantfv(NNDE_iterator,:)-pdominantfv(:,:)).^2,2)),3))];    
     end
 
     [value, index] = max(pdominantfv_NNDE);
 
-    gbestfv = pdominantfv(index);
-    gbest = pdominant(index,:);
+    if value > gbestNNDE
+        gbestfv = pdominantfv(index,:);
+        gbest = pdominant(index,:);
+    end
     
+    pdominantfv_history = [pdominantfv_history; 0 0;pdominantfv];
+    pdominant_history = [pdominant_history; 0 0;pdominant];
 end
 
 
