@@ -7,6 +7,7 @@
 clc; clear;
 w_init = 1;c1 = 2; c2 =2;
 pop_size = 1000; iteration = 200;
+%% Boundary Limit for the Particles, Please change it to match your condition.
 ub = [5 3];
 lb = [0 0];
 vub = [0.5 0.5];
@@ -14,7 +15,6 @@ vlb = [-0.5 -0.5];
 
 n_var = length(ub);
 
-figure_iterator = 1;
 %% Particle Initialization
 x = rand(pop_size, n_var) .* (ub-lb) + lb;
 
