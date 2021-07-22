@@ -6,8 +6,8 @@
 
 clc; clear;
 w_init = 1;c1 = 2; c2 =2;
-pop_size = 1000; iteration = 200;
-%% Boundary Limit for the Particles, Please change it to match your condition.
+pop_size = 100; iteration = 10;
+% Boundary Limit for the Particles, Please change it to match your condition.
 ub = [5 3];
 lb = [0 0];
 vub = [0.5 0.5];
@@ -15,6 +15,7 @@ vlb = [-0.5 -0.5];
 
 n_var = length(ub);
 
+mo_fit = 'NNDI';
 %% Particle Initialization
 x = rand(pop_size, n_var) .* (ub-lb) + lb;
 
@@ -24,48 +25,26 @@ for pop_iter=1:pop_size
  fv(pop_iter,:) = objFunction(x(pop_iter,:));
 end
 
-%%% We assume that all the particle is... dominating agaisnt it previous
-%%% self.
 pbestfv = fv;
 pbest = x;
-fv_history(:,:,1) = fv;
-x_history(:,:,1) = x;
 
 %%% Check for Domination
-pdominant = [];
-pdominantfv = [];
-for pop_iter=1:pop_size
-    pbestfv_trial = pbestfv;
-    pbestfv_trial(pop_iter,:) = [];
-    dominated = checkDomination(pbestfv(pop_iter,:), pbestfv_trial);
-    if (dominated == 0)
-       pdominantfv = [pdominantfv; pbestfv(pop_iter,:)];
-       pdominant = [pdominant; x(pop_iter,:)];
-    end
-end
+[pdominant, pdominantfv] = sortDomination(x, fv, pop_size)
 
-pdominantfv_history = [];
-pdominant_history = [];
+% Determine the Fitness of the dominant
+% Nearest Neighbor Density Estimator
+pdominantfv_NNDE = distNNDE(pdominantfv);
 
-%% Determine the Fitness of the dominant
-%%% Nearest Neighbor Density Estimator
-pdominantfv_NNDE = [];
-for iterator=1:size(pdominantfv,1)
-    pdominantfv_NNDE = [pdominantfv_NNDE; sum(mink(sqrt(sum((pdominantfv(iterator,:)-pdominantfv(:,:)).^2,2)),3))];    
-end
 [value, index] = max(pdominantfv_NNDE);
 
 gbestNNDE = value;
 gbestfv = pdominantfv(index,:);
 gbest = pdominant(index,:);
 
-pdominantfv_history = pdominantfv;
-pdominant_history = pdominant;
-
 v = (rand(pop_size, n_var)) .* (vub-vlb) + vlb;
 %% Population Iteration
 for iterator = 1:iteration
-w = w_init - (0.5/iteration * iteration);
+w = w_init - (0.5/iteration * iterator);
 
     for pop_iter=1:pop_size
 
@@ -93,62 +72,31 @@ w = w_init - (0.5/iteration * iteration);
         v(pop_iter,vbindex_down)=vlb(vbindex_down);
 
         dominated = checkDomination(fv(pop_iter,:), pbestfv(pop_iter));
+        valid = checkValid(x(pop_iter,:),lb,ub);
         if (dominated == 0 & valid == 1)
              pbestfv(pop_iter,:) = fv(pop_iter,:);
              pbest(pop_iter,:) = x(pop_iter,:);
         end
         
-        fv_history(:,:,1+iterator) = fv;
-        x_history(:,:,1+iterator) = x;
         
     end
     
-    %% Expand the Domination Matrix
-    for dominant_loop_iterator=1:pop_size
-        pbestfv_trial = pbestfv;
-        pbestfv_trial(dominant_loop_iterator,:) = [];
-        dominated = checkDomination(pbestfv(dominant_loop_iterator,:), pbestfv_trial);
-        if (dominated == 0)
-           pdominantfv = [pdominantfv; pbestfv(dominant_loop_iterator,:)];
-           pdominant = [pdominant; pbest(dominant_loop_iterator,:)];
-        end
-    end
-    
-    %% Remove Duplicate Dominanating Resut
-    [B,I] =unique(pdominant,'rows');
-    pdominant = B;
-    pdominantfv = pdominantfv(I,:);
-    
-    %% Kill Non Dominating Result
-    dominated_rank = [];
-        for dominant_loop_iterator=1:size(pdominantfv,1)
-            pdominantfv_trial = pdominantfv;
-            pdominantfv_trial(dominant_loop_iterator,:) = [];
-            dominated = checkDomination(pdominantfv(dominant_loop_iterator,:), pdominantfv_trial);
-            dominated_rank = [dominated_rank; dominated];
-        end
-        
-    I = find(dominated_rank == 0);
-    pdominantfv = pdominantfv(I,:);
-    pdominant = pdominant(I,:);
+    % Expand the Domination Matrix
+    [pdominant, pdominantfv] = sortDomination([pdominant; x], [pdominantfv; fv], pop_size+size(pdominantfv,1))
 
     %% Determine the GBest
-    pdominantfv_NNDE =[];
-    for NNDE_iterator=1:size(pdominantfv,1)
-        pdominantfv_NNDE = [pdominantfv_NNDE; sum(mink(sqrt(sum((pdominantfv(NNDE_iterator,:)-pdominantfv(:,:)).^2,2)),3))];    
-    end
-
+    pdominantfv_NNDE = distNNDE(pdominantfv);
     [value, index] = max(pdominantfv_NNDE);
 
     if value > gbestNNDE
         gbestfv = pdominantfv(index,:);
         gbest = pdominant(index,:);
     end
-    
-    pdominantfv_history = [pdominantfv_history; 0 0;pdominantfv];
-    pdominant_history = [pdominant_history; 0 0;pdominant];
 end
 
+if (nvar == 2)
+   scatter(pdominantfv(:,1), pdominantfv(:,2)) 
+end
 
 function fitness = objFunction(var)
     %%% Test Case from http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.46.8661
@@ -158,8 +106,12 @@ end
 
 
 function valid = checkValid(particle, lb, ub)
-   break_boundary = sum(particle>=ub) + sum(particle<=lb);
-   break_boundary = sum(particle>=ub) + sum(particle<=lb);
+    % Check for if the particle range is under UB and over LB
+    break_boundary = sum(particle>=ub) + sum(particle<=lb);
+    
+    % TO DO
+    % Handle Constraint!!! 
+    
     if (break_boundary == 0)
         valid = 1;
     else
@@ -172,3 +124,24 @@ function [dominated, dominating] = checkDomination(particle,particles)
     dominating = sum(sum((particles>=particle),2) == length(particle));
 end
 
+function [pdominant, pdominantfv] = sortDomination(x, fv, pop_size)
+    pdominant = [];
+    pdominantfv = [];
+    for pop_iter=1:pop_size
+        fv_iter = fv;
+        fv_iter(pop_iter,:) = [];
+        dominated = checkDomination(fv(pop_iter,:), fv_iter);
+        if (dominated == 0)
+           pdominantfv = [pdominantfv; fv(pop_iter,:)];
+           pdominant = [pdominant; x(pop_iter,:)];
+        end
+    end
+end
+
+function pdominantfv_NNDE = distNNDE(pdominantfv)
+    pdominantfv_NNDE = []
+    
+    for iterator=1:size(pdominantfv,1)
+        pdominantfv_NNDE = [pdominantfv_NNDE; sum(mink(sqrt(sum((pdominantfv(iterator,:)-pdominantfv(:,:)).^2,2)),3))];    
+    end
+end
